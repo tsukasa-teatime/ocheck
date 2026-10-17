@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>出演チェックリスト</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#ECEFF3;          /* 曇り空の紙白 */
+    --card:#FFFFFF;
+    --ink:#1C2B4A;         /* 藍インク */
+    --ink-soft:#5A6678;
+    --line:#D6DBE3;
+    --vermilion:#C93B2B;   /* 印刷朱 */
+    --vermilion-soft:#F7E3DF;
+    --new:#C93B2B;
+    --tag-live:#1C2B4A;
+    --tag-tv:#E8ECF2;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic UI",sans-serif;
+    font-size:15px;line-height:1.55;
+    padding-bottom:96px;
+  }
+  .mono{font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace}
+  .wrap{max-width:640px;margin:0 auto;padding:0 16px}
+
+  /* ---------- header ---------- */
+  header{padding:28px 0 14px}
+  .eyebrow{
+    font-size:11px;letter-spacing:.22em;color:var(--ink-soft);
+    text-transform:uppercase;margin-bottom:6px;
+  }
+  h1{
+    font-family:"Shippori Mincho",serif;font-weight:700;
+    font-size:30px;line-height:1.25;letter-spacing:.02em;
+  }
+  h1 .artist{display:block;font-size:14px;font-weight:600;color:var(--ink-soft);letter-spacing:.14em;margin-bottom:2px}
+  .stats{display:flex;gap:22px;margin-top:14px;align-items:baseline}
+  .stat b{font-family:"Shippori Mincho",serif;font-size:24px;font-weight:700;display:block;line-height:1}
+  .stat span{font-size:11px;color:var(--ink-soft);letter-spacing:.08em}
+  .stat.done b{color:var(--vermilion)}
+
+  /* ---------- toolbar ---------- */
+  .toolbar{
+    position:sticky;top:0;z-index:20;
+    background:linear-gradient(var(--bg) 82%,transparent);
+    padding:10px 0 8px;margin-top:8px;
+  }
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{
+    border:1px solid var(--line);background:var(--card);color:var(--ink);
+    font:inherit;font-size:12.5px;padding:5px 13px;border-radius:999px;cursor:pointer;
+    transition:background .12s,color .12s;
+  }
+  .chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+  .chip:focus-visible{outline:2px solid var(--vermilion);outline-offset:2px}
+  .chip .n{opacity:.55;margin-left:3px;font-size:11px}
+  .refresh{
+    margin-left:auto;border:1px solid var(--line);background:var(--card);color:var(--ink);
+    font:inherit;font-size:12.5px;padding:5px 13px;border-radius:999px;cursor:pointer;
+  }
+  .refresh:focus-visible{outline:2px solid var(--vermilion);outline-offset:2px}
+  .fetched{font-size:10.5px;color:var(--ink-soft);margin-top:6px;letter-spacing:.04em}
+
+  /* ---------- list ---------- */
+  .dayhead{
+    display:flex;align-items:baseline;gap:10px;
+    margin:22px 0 8px;
+  }
+  .dayhead b{font-family:"Shippori Mincho",serif;font-size:15px;font-weight:700;white-space:nowrap}
+  .dayhead .rule{flex:1;border-top:1px solid var(--line);transform:translateY(-3px)}
+  .dayhead .past{font-size:10.5px;color:var(--ink-soft);letter-spacing:.1em}
+
+  .row{
+    display:flex;align-items:center;gap:12px;
+    background:var(--card);border:1px solid var(--line);border-radius:10px;
+    padding:12px 14px;margin-bottom:8px;
+  }
+  .row.is-new{border-color:var(--vermilion);box-shadow:0 0 0 1px var(--vermilion) inset}
+  .row.is-done{opacity:.55}
+  .rowmain{flex:1;min-width:0}
+  .meta{display:flex;gap:6px;align-items:center;margin-bottom:3px;flex-wrap:wrap}
+  .tag{
+    font-size:10px;letter-spacing:.14em;padding:2px 8px;border-radius:3px;font-weight:700;
+  }
+  .tag.live{background:var(--tag-live);color:#fff}
+  .tag.tv{background:var(--tag-tv);color:var(--ink);border:1px solid var(--line)}
+  .newbadge{
+    font-size:10px;letter-spacing:.1em;color:var(--new);font-weight:700;
+    border:1px solid var(--new);border-radius:3px;padding:1px 6px;
+  }
+  .time{font-size:11px;color:var(--ink-soft)}
+  .title{font-weight:600;font-size:15px;overflow-wrap:anywhere}
+  .venue{font-size:12px;color:var(--ink-soft);margin-top:1px;overflow-wrap:anywhere}
+
+  /* ---------- stamp checkbox (signature) ---------- */
+  .check{
+    flex:none;width:44px;height:44px;border-radius:50%;
+    border:1.5px solid var(--line);background:var(--card);cursor:pointer;
+    font:inherit;display:grid;place-items:center;position:relative;
+    transition:border-color .12s;
+  }
+  .check:focus-visible{outline:2px solid var(--vermilion);outline-offset:3px}
+  .check .kanji{
+    font-family:"Shippori Mincho",serif;font-size:17px;font-weight:700;
+    color:transparent;user-select:none;
+  }
+  .check[aria-checked="true"]{
+    border-color:var(--vermilion);background:var(--vermilion-soft);
+  }
+  .check[aria-checked="true"] .kanji{color:var(--vermilion)}
+  .check[aria-checked="true"]::after{
+    content:"";position:absolute;inset:3px;border:1.5px dashed var(--vermilion);
+    border-radius:50%;opacity:.7;
+  }
+  .check[aria-checked="true"]{transform:rotate(-8deg)}
+  @keyframes stampIn{
+    from{transform:rotate(-8deg) scale(1.55);opacity:.2}
+    to{transform:rotate(-8deg) scale(1);opacity:1}
+  }
+  .check[aria-checked="true"]{animation:stampIn .18s ease-out}
+  @media (prefers-reduced-motion:reduce){
+    .check[aria-checked="true"]{animation:none}
+    .chip,.refresh{transition:none}
+  }
+
+  /* ---------- demo banner / footer ---------- */
+  .demo{
+    margin-top:18px;font-size:12px;color:var(--ink);
+    background:var(--card);border:1px dashed var(--ink-soft);border-radius:10px;
+    padding:10px 14px;
+  }
+  .demo button{background:none;border:none;color:var(--vermilion);font:inherit;font-size:12px;cursor:pointer;text-decoration:underline;padding:0}
+  footer{
+    margin-top:28px;padding-top:14px;border-top:1px solid var(--line);
+    display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+  }
+  footer .linklike{
+    background:none;border:none;font:inherit;font-size:12.5px;color:var(--ink-soft);
+    cursor:pointer;text-decoration:underline;text-underline-offset:3px;padding:4px 2px;
+  }
+  footer .linklike:focus-visible{outline:2px solid var(--vermilion);outline-offset:2px}
+
+  /* ---------- modal ---------- */
+  dialog{
+    border:none;border-radius:14px;max-width:520px;width:calc(100% - 32px);
+    padding:0;color:var(--ink);background:var(--card);
+  }
+  dialog::backdrop{background:rgba(28,43,74,.45)}
+  .modalbody{padding:22px}
+  .modalbody h2{font-family:"Shippori Mincho",serif;font-size:18px;margin-bottom:6px}
+  .modalbody p{font-size:12.5px;color:var(--ink-soft);margin-bottom:10px}
+  .modalbody textarea,.modalbody input[type=text],.modalbody input[type=url]{
+    width:100%;font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace;
+    border:1px solid var(--line);border-radius:8px;padding:8px 10px;color:var(--ink);background:#FBFBFC;
+  }
+  .modalbody textarea{height:120px;resize:vertical}
+  .modalrow{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+  .btn{
+    font:inherit;font-size:13px;padding:8px 16px;border-radius:8px;cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--ink);
+  }
+  .btn.primary{background:var(--ink);border-color:var(--ink);color:#fff}
+  .btn.danger{color:var(--vermilion);border-color:var(--vermilion)}
+  .btn:focus-visible{outline:2px solid var(--vermilion);outline-offset:2px}
+  .errmsg{font-size:12px;color:var(--vermilion);margin-top:8px;overflow-wrap:anywhere}
+
+  .empty{padding:40px 0;text-align:center;color:var(--ink-soft);font-size:13px}
+  @media (max-width:380px){
+    h1{font-size:25px}
+    .check{width:40px;height:40px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Schedule Checker</p>
+    <h1><span class="artist" id="artistName">COSMO DOLLS</span>出演チェック</h1>
+    <div class="stats">
+      <div class="stat"><b id="stTotal">0</b><span>全件</span></div>
+      <div class="stat done"><b id="stDone">0</b><span>チェック済</span></div>
+      <div class="stat"><b id="stLeft">0</b><span>未チェック</span></div>
+      <div class="stat"><b id="stNew">0</b><span>新着</span></div>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <div class="chips" id="chips" role="group" aria-label="絞り込み">
+      <button class="chip" data-f="all" aria-pressed="true">すべて</button>
+      <button class="chip" data-f="left" aria-pressed="false">未チェック<span class="n" id="nLeft"></span></button>
+      <button class="chip" data-f="live" aria-pressed="false">ライブ</button>
+      <button class="chip" data-f="tv" aria-pressed="false">TV</button>
+      <button class="chip" data-f="new" aria-pressed="false">新着<span class="n" id="nNew"></span></button>
+      <button class="refresh" id="btnRefresh" type="button">再読込</button>
+    </div>
+    <p class="fetched" id="fetchedAt"></p>
+  </div>
+
+  <main id="list" aria-live="polite"></main>
+
+  <div class="demo" id="demoBanner" hidden>
+    サンプルデータで動作中です。<button id="btnDemoSetup" type="button">自分のスプレッドシートを設定する</button>
+  </div>
+
+  <footer>
+    <button class="linklike" id="btnSettings" type="button">スプレッドシート設定</button>
+    <button class="linklike" id="btnExport" type="button">チェック状況の書き出し / 読み込み</button>
+    <button class="linklike" id="btnReset" type="button">チェックを全リセット</button>
+  </footer>
+</div>
+
+<dialog id="dlgSettings">
+  <div class="modalbody">
+    <h2>スプレッドシート設定</h2>
+    <p>スプレッドシートを「リンクを知っている全員：閲覧者」で共有し、URLを貼り付けてください。gviz形式のCSV URLでも構いません。ローカルファイル（file://）で開いても動作します。</p>
+    <input type="url" id="inUrl" placeholder="https://docs.google.com/spreadsheets/d/…">
+    <input type="text" id="inSheet" placeholder="シート名（省略可・既定は先頭シート）" style="margin-top:8px">
+    <div class="errmsg" id="setErr" hidden></div>
+    <div class="modalrow">
+      <button class="btn primary" id="btnSaveUrl" type="button">保存して読み込む</button>
+      <button class="btn" id="btnTestUrl" type="button">接続テスト</button>
+      <button class="btn" id="btnCloseSettings" type="button">閉じる</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="dlgExport">
+  <div class="modalbody">
+    <h2>チェック状況の書き出し / 読み込み</h2>
+    <p>機種変更や別ブラウザへの移行用です。下のテキストをコピーして保存し、引っ越し先で貼り付けて「読み込む」を押してください。</p>
+    <textarea id="taExport" spellcheck="false"></textarea>
+    <div class="errmsg" id="expErr" hidden></div>
+    <div class="modalrow">
+      <button class="btn primary" id="btnCopy" type="button">コピー</button>
+      <button class="btn" id="btnImport" type="button">この内容を読み込む</button>
+      <button class="btn" id="btnCloseExport" type="button">閉じる</button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+"use strict";
+/* ================= 設定・状態 ================= */
+const LS = {
+  checked: "ocheck.checked.v1",   // {id: timestamp}
+  known:   "ocheck.known.v1",     // [id,...] 前回までに存在した項目（新着判定用）
+  url:     "ocheck.sheetUrl.v1",  // スプレッドシートURL
+  sheet:   "ocheck.sheetName.v1", // シート名
+  fetched: "ocheck.fetchedAt.v1"
+};
+
+/* サンプルデータ（スプレッドシート未設定時に使用） */
+const SAMPLE_CSV = `ID,日付,種別,タイトル,会場・放送局,メモ
+live-20261010,2026-10-10,LIVE,「銀河行列ツアー」名古屋公演,名古屋・ボトムライン,開場17:30
+tv-20261012,2026-10-12,TV,「ミッドナイト・サウンド」出演,TBSラジオ 24:30~,収録
+live-20261017,2026-10-17,LIVE,「銀河行列ツアー」大阪公演,大阪・サンポールホール,開場17:30
+tv-20261019,2026-10-19,TV,「サンデーミュージックライン」生出演,ABKテレビ 22:00〜23:15,生放送
+live-20261024,2026-10-24,LIVE,「銀河行列ツアー」東京公演,東京・ 日本武道館,開場16:30
+tv-20261027,2026-10-27,TV,「火曜シネマ館」主題歌担当,テレビ朝系 21:00~,ドラマ主題歌
+live-20261101,2026-11-01,LIVE,「銀河行列ツアー」福岡公演,福岡・ゲートウェイホール,開場17:00
+tv-20261103,2026-11-03,TV,「音楽の日々」特集,CSミュージック配信 20:00~,アーカイブ配信あり
+live-20261108,2026-11-08,LIVE,「銀河行列ツアー」追加公演・横浜,横浜・シーサイドアリーナ,追加公演`;
+
+let items = [];          // {id,date,type,title,venue,note,ts}
+let checked = {};        // id -> timestamp
+let knownIds = new Set();
+let filter = "all";
+let isDemo = true;
+
+/* ================= localStorage ================= */
+const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch { return d; } };
+const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+checked  = load(LS.checked, {});
+knownIds = new Set(load(LS.known, []));
+
+/* ================= CSV パーサ（クォート対応の簡易実装） ================= */
+function parseCSV(text){
+  const rows = []; let row = [], f = "", q = false;
+  for (let i = 0; i < text.length; i++){
+    const c = text[i];
+    if (q){
+      if (c === '"'){ if (text[i+1] === '"'){ f += '"'; i++; } else q = false; }
+      else f += c;
+    } else if (c === '"') q = true;
+    else if (c === ','){ row.push(f); f = ""; }
+    else if (c === '\n' || c === '\r'){
+      if (c === '\r' && text[i+1] === '\n') i++;
+      row.push(f); f = "";
+      if (row.some(x => x !== "")) rows.push(row);
+      row = [];
+    } else f += c;
+  }
+  row.push(f);
+  if (row.some(x => x !== "")) rows.push(row);
+  return rows;
+}
+
+function hashId(s){ // idが空の行用：内容から安定したIDを作る
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return "auto-" + (h >>> 0).toString(36);
+}
+
+/* ================= 行 → データ変換 ================= */
+function rowsToItems(rows){
+  if (!rows.length) return [];
+  const head = rows[0].map(h => h.trim());
+  const find = (...names) => head.findIndex(h => names.some(n => h.includes(n)));
+  const iId    = find("ID", "id");
+  const iDate  = find("日付", "date");
+  const iType  = find("種別", "区分", "type");
+  const iTitle = find("タイトル", "番組", "タイトル", "title", "内容");
+  const iVenue = find("会場", "放送", "場所", "venue");
+  const iNote  = find("メモ", "備考", "note");
+  const hasHeader = iDate > -1 && iTitle > -1;
+  return rows.slice(hasHeader ? 1 : 0).map(r => {
+    const get = i => (i > -1 && r[i] ? r[i].trim() : "");
+    const date = get(iDate > -1 ? iDate : 0);
+    const type = get(iType > -1 ? iType : 1);
+    const title = get(iTitle > -1 ? iTitle : 2);
+    const venue = get(iVenue > -1 ? iVenue : 3);
+    const note = get(iNote);
+    const id = get(iId) || hashId(date + "|" + type + "|" + title + "|" + venue);
+    const t = normalizeType(type);
+    return { id, date: date.replace(/\//g, "-"), type: t, title, venue, note,
+             ts: parseDate(date) };
+  }).filter(x => x.title);
+}
+function normalizeType(s){
+  if (/live|ライブ|コンサート|公演|フェス/i.test(s)) return "LIVE";
+  if (/tv|テレビ|ラジオ|放送|出演|番組/i.test(s)) return "TV";
+  return (s || "OTHER").toUpperCase();
+}
+function parseDate(s){
+  const m = s.match(/(\d{4})[-/年](\d{1,2})[-/月](\d{1,2})/);
+  if (!m) return null;
+  return new Date(+m[1], +m[2]-1, +m[3]).getTime();
+}
+
+/* ================= URL 整形 ================= */
+function gvizBase(raw){
+  let m = raw.match(/spreadsheets\/d\/([A-Za-z0-9_-]{20,})/);
+  if (m) return `https://docs.google.com/spreadsheets/d/${m[1]}/gviz/tq`;
+  if (/gviz\/tq/.test(raw)){
+    const u = new URL(raw);
+    u.searchParams.delete("tqx"); u.searchParams.delete("nocache");
+    return u.toString();
+  }
+  return null;
+}
+function gvizUrls(raw, sheetName){
+  const base = gvizBase(raw);
+  if (!base) return null;
+  const sheet = sheetName ? "&sheet=" + encodeURIComponent(sheetName) : "";
+  const n = "&nocache=" + Date.now();
+  return {
+    csv:   `${base}?tqx=out:csv${sheet}${n}`,
+    jsonp: `${base}?tqx=out:json;responseHandler:__RH__${sheet}${n}`
+  };
+}
+
+/* JSONP（script注入）：file:// など CORSヘッダが得られない環境用のフォールバック */
+let jsonpSeq = 0;
+function fetchViaJsonp(urlTemplate){
+  return new Promise((resolve, reject) => {
+    const cb = "__gviz_cb_" + (++jsonpSeq);
+    const s = document.createElement("script");
+    const timer = setTimeout(() => { cleanup(); reject(new Error("タイムアウト（15秒）")); }, 15000);
+    function cleanup(){ clearTimeout(timer); delete window[cb]; s.remove(); }
+    window[cb] = data => { cleanup(); resolve(data); };
+    s.onerror = () => { cleanup(); reject(new Error("読み込みに失敗しました")); };
+    s.src = urlTemplate.replace("__RH__", cb);
+    document.head.appendChild(s);
+  });
+}
+
+/* gviz JSONテーブル → CSV行配列 */
+function tableToRows(t){
+  const rows = [(t.cols || []).map(c => c.label || c.id || "")];
+  for (const r of (t.rows || [])){
+    rows.push((r.c || []).map(cell => {
+      if (!cell || cell.v == null) return "";
+      let v = cell.v;
+      if (typeof v === "string"){
+        const m = v.match(/^Date\((\d+),(\d+),(\d+)/);
+        if (m) return `${+m[1]}-${String(+m[2]+1).padStart(2,"0")}-${String(+m[3]).padStart(2,"0")}`;
+      }
+      return String(v);
+    }));
+  }
+  return rows;
+}
+
+/* 統合ローダ：まず fetch、失敗時（file:// 等）はJSONP */
+async function loadSheet(raw, sheetName){
+  const urls = gvizUrls(raw, sheetName);
+  if (!urls) throw new Error("URLの形式が違います");
+  if (location.protocol !== "file:"){
+    try{
+      const res = await fetch(urls.csv, { cache: "no-store" });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const text = await res.text();
+      if (/^\s*</.test(text)) throw new Error("HTMLが返りました（公開設定を確認してください）");
+      const rows = parseCSV(text);
+      if (rows.length) return rows;
+      throw new Error("データ行が空です");
+    }catch(e){
+      // ネットワーク/CORS系の失敗だけJSONPへフォールバック
+      if (!/Failed to fetch|NetworkError|Load failed/i.test(String(e.message))) throw e;
+    }
+  }
+  const data = await fetchViaJsonp(urls.jsonp);
+  if (data.status !== "ok"){
+    const er = data.errors && data.errors[0];
+    throw new Error(er ? (er.detailed_message || er.message) : "データ取得エラー");
+  }
+  const rows = tableToRows(data.table);
+  if (!rows.length) throw new Error("データ行が空です");
+  return rows;
+}
+
+/* ================= データ取得 ================= */
+async function fetchData(){
+  const raw = localStorage.getItem(LS.url);
+  if (!raw){ useDemo(); render(); return; }
+  try{
+    const rows = await loadSheet(raw, localStorage.getItem(LS.sheet));
+    items = rowsToItems(rows);
+    if (!items.length) throw new Error("データ行が空です");
+    isDemo = false;
+    save(LS.fetched, Date.now());
+  }catch(e){
+    useDemo();
+    document.getElementById("fetchedAt").textContent =
+      "読み込み失敗（" + e.message + "）→ サンプルで表示中";
+  }
+  render();
+}
+function useDemo(){
+  items = rowsToItems(parseCSV(SAMPLE_CSV));
+  isDemo = true;
+  document.getElementById("demoBanner").hidden = false;
+}
+
+/* ================= 描画 ================= */
+const WD = ["日","月","火","水","木","金","土"];
+function fmtDate(ts){
+  const d = new Date(ts);
+  return (d.getMonth()+1) + "月" + d.getDate() + "日(" + WD[d.getDay()] + ")";
+}
+function today0(){ const d = new Date(); d.setHours(0,0,0,0); return d.getTime(); }
+
+function visibleItems(){
+  const now = today0();
+  return items.filter(it => {
+    if (filter === "left" && checked[it.id]) return false;
+    if (filter === "live" && it.type !== "LIVE") return false;
+    if (filter === "tv" && it.type !== "TV") return false;
+    if (filter === "new" && knownIds.has(it.id)) return false;
+    return true;
+  });
+}
+
+function render(){
+  const now = today0();
+  items.sort((a,b) => (a.ts ?? Infinity) - (b.ts ?? Infinity));
+  const vis = visibleItems();
+  const list = document.getElementById("list");
+  list.innerHTML = "";
+  let lastDay = null;
+  for (const it of vis){
+    if (it.ts !== lastDay){
+      lastDay = it.ts;
+      const h = document.createElement("div");
+      h.className = "dayhead";
+      const past = it.ts != null && it.ts < now ? '<span class="past">終了</span>' : "";
+      h.innerHTML = `<b>${it.ts != null ? fmtDate(it.ts) : "日付未定"}</b><span class="rule"></span>${past}`;
+      list.appendChild(h);
+    }
+    const isDone = !!checked[it.id];
+    const isNew = !knownIds.has(it.id);
+    const row = document.createElement("article");
+    row.className = "row" + (isDone ? " is-done" : "") + (isNew ? " is-new" : "");
+    const tag = it.type === "LIVE"
+      ? '<span class="tag live">LIVE</span>'
+      : it.type === "TV" ? '<span class="tag tv">TV</span>'
+      : `<span class="tag tv">${escapeHtml(it.type)}</span>`;
+    row.innerHTML = `
+      <div class="rowmain">
+        <div class="meta">${tag}${isNew ? '<span class="newbadge">新着</span>' : ""}${it.note ? `<span class="time">${escapeHtml(it.note)}</span>` : ""}</div>
+        <div class="title">${escapeHtml(it.title)}</div>
+        ${it.venue ? `<div class="venue">${escapeHtml(it.venue)}</div>` : ""}
+      </div>
+      <button class="check" type="button" role="checkbox" aria-checked="${isDone}"
+        aria-label="「${escapeHtml(it.title)}」をチェック" data-id="${escapeHtml(it.id)}">
+        <span class="kanji">済</span>
+      </button>`;
+    list.appendChild(row);
+  }
+  if (!vis.length){
+    list.innerHTML = '<div class="empty">表示できる項目がありません。フィルタを見直してください。</div>';
+  }
+  // 統計
+  const done = items.filter(i => checked[i.id]).length;
+  const news = items.filter(i => !knownIds.has(i.id)).length;
+  document.getElementById("stTotal").textContent = items.length;
+  document.getElementById("stDone").textContent = done;
+  document.getElementById("stLeft").textContent = items.length - done;
+  document.getElementById("stNew").textContent = news;
+  document.getElementById("nLeft").textContent = items.length - done;
+  document.getElementById("nNew").textContent = news;
+  // 取得時刻表示
+  const f = load(LS.fetched, null);
+  if (f && !isDemo){
+    document.getElementById("fetchedAt").textContent =
+      "最終取得: " + new Date(f).toLocaleString("ja-JP", {month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit"});
+  }
+}
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c =>
+    ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+/* ================= イベント ================= */
+document.getElementById("list").addEventListener("click", e => {
+  const btn = e.target.closest(".check");
+  if (!btn) return;
+  const id = btn.dataset.id;
+  if (checked[id]) delete checked[id]; else checked[id] = Date.now();
+  save(LS.checked, checked);
+  btn.setAttribute("aria-checked", checked[id] ? "true" : "false");
+  btn.closest(".row").classList.toggle("is-done", !!checked[id]);
+  // 統計だけ更新（全体再描画はしない＝スタンプのアニメを保つ）
+  const done = items.filter(i => checked[i.id]).length;
+  document.getElementById("stDone").textContent = done;
+  document.getElementById("stLeft").textContent = items.length - done;
+  document.getElementById("nLeft").textContent = items.length - done;
+});
+
+document.getElementById("chips").addEventListener("click", e => {
+  const chip = e.target.closest(".chip[data-f]");
+  if (!chip) return;
+  filter = chip.dataset.f;
+  document.querySelectorAll(".chip[data-f]").forEach(c =>
+    c.setAttribute("aria-pressed", c === chip ? "true" : "false"));
+  render();
+});
+
+document.getElementById("btnRefresh").addEventListener("click", fetchData);
+
+/* 設定ダイアログ */
+const dlgSettings = document.getElementById("dlgSettings");
+function openSettings(){
+  document.getElementById("inUrl").value = localStorage.getItem(LS.url) || "";
+  document.getElementById("inSheet").value = localStorage.getItem(LS.sheet) || "";
+  document.getElementById("setErr").hidden = true;
+  dlgSettings.showModal();
+}
+document.getElementById("btnSettings").addEventListener("click", openSettings);
+document.getElementById("btnDemoSetup").addEventListener("click", openSettings);
+document.getElementById("btnCloseSettings").addEventListener("click", () => dlgSettings.close());
+document.getElementById("btnTestUrl").addEventListener("click", async () => {
+  const err = document.getElementById("setErr");
+  const raw = document.getElementById("inUrl").value.trim();
+  const sheet = document.getElementById("inSheet").value.trim();
+  err.hidden = false;
+  if (!gvizUrls(raw, sheet)){ err.textContent = "スプレッドシートのURLとして認識できません。"; return; }
+  err.textContent = "テスト中…";
+  try{
+    const rows = await loadSheet(raw, sheet);
+    err.textContent = "OK：先頭行 " + (rows[0] || []).join(" / ") + " ／ " + Math.max(rows.length - 1, 0) + "件のデータ";
+  }catch(e){ err.textContent = "失敗：" + e.message; }
+});
+document.getElementById("btnSaveUrl").addEventListener("click", () => {
+  const raw = document.getElementById("inUrl").value.trim();
+  if (raw){ localStorage.setItem(LS.url, raw); localStorage.setItem(LS.sheet, document.getElementById("inSheet").value.trim()); }
+  else { localStorage.removeItem(LS.url); localStorage.removeItem(LS.sheet); }
+  dlgSettings.close();
+  document.getElementById("demoBanner").hidden = true;
+  document.getElementById("fetchedAt").textContent = "";
+  fetchData();
+});
+
+/* 書き出し / 読み込み */
+const dlgExport = document.getElementById("dlgExport");
+document.getElementById("btnExport").addEventListener("click", () => {
+  document.getElementById("taExport").value = JSON.stringify({ checked, known: [...knownIds] });
+  document.getElementById("expErr").hidden = true;
+  dlgExport.showModal();
+});
+document.getElementById("btnCloseExport").addEventListener("click", () => dlgExport.close());
+document.getElementById("btnCopy").addEventListener("click", async () => {
+  const ta = document.getElementById("taExport");
+  ta.select();
+  try{ await navigator.clipboard.writeText(ta.value); }catch{ document.execCommand("copy"); }
+});
+document.getElementById("btnImport").addEventListener("click", () => {
+  const err = document.getElementById("expErr");
+  try{
+    const d = JSON.parse(document.getElementById("taExport").value);
+    if (typeof d.checked !== "object") throw new Error("形式が違います");
+    checked = d.checked;
+    if (Array.isArray(d.known)) knownIds = new Set([...knownIds, ...d.known]);
+    save(LS.checked, checked); save(LS.known, [...knownIds]);
+    dlgExport.close();
+    render();
+  }catch(e){ err.hidden = false; err.textContent = "読み込み失敗：" + e.message; }
+});
+
+/* 全リセット */
+document.getElementById("btnReset").addEventListener("click", () => {
+  if (!confirm("すべてのチェックを削除します。よろしいですか？")) return;
+  checked = {}; save(LS.checked, checked);
+  render();
+});
+
+/* 新着の記録：描画から5秒後（ユーザーが見たものとみなす）に既知IDへ登録 */
+setTimeout(() => {
+  items.forEach(i => knownIds.add(i.id));
+  save(LS.known, [...knownIds]);
+  document.querySelectorAll(".row.is-new").forEach(r => r.classList.remove("is-new"));
+  const news = 0;
+  document.getElementById("stNew").textContent = news;
+  document.getElementById("nNew").textContent = news;
+}, 5000);
+
+/* ================= 起動 ================= */
+(async function init(){
+  const raw = localStorage.getItem(LS.url);
+  if (raw && gvizUrls(raw, localStorage.getItem(LS.sheet))){
+    isDemo = false;
+    await fetchData();
+  } else {
+    useDemo();
+    render();
+  }
+})();
+</script>
+</body>
+</html>
