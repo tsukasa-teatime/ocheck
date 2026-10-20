@@ -171,6 +171,9 @@
   .btn.danger{color:var(--vermilion);border-color:var(--vermilion)}
   .btn:focus-visible{outline:2px solid var(--vermilion);outline-offset:2px}
   .errmsg{font-size:12px;color:var(--vermilion);margin-top:8px;overflow-wrap:anywhere}
+  .radiolabel{display:flex;align-items:center;gap:6px;font-size:13px;padding:4px 2px}
+  .plabel{font-size:11px;color:var(--ink-soft);margin:10px 0 4px;letter-spacing:.04em}
+  .ngrid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 
   .empty{padding:40px 0;text-align:center;color:var(--ink-soft);font-size:13px}
   @media (max-width:380px){
@@ -207,11 +210,11 @@
   <main id="list" aria-live="polite"></main>
 
   <div class="demo" id="demoBanner" hidden>
-    サンプルデータで動作中です。<button id="btnDemoSetup" type="button">自分のスプレッドシートを設定する</button>
+    サンプルデータで動作中です。<button id="btnDemoSetup" type="button">データソースを設定する</button>
   </div>
 
   <footer>
-    <button class="linklike" id="btnSettings" type="button">スプレッドシート設定</button>
+    <button class="linklike" id="btnSettings" type="button">データソース設定</button>
     <button class="linklike" id="btnExport" type="button">チェック状況の書き出し / 読み込み</button>
     <button class="linklike" id="btnReset" type="button">チェックを全リセット</button>
   </footer>
@@ -219,10 +222,29 @@
 
 <dialog id="dlgSettings">
   <div class="modalbody">
-    <h2>スプレッドシート設定</h2>
-    <p>スプレッドシートを「リンクを知っている全員：閲覧者」で共有し、URLを貼り付けてください。gviz形式のCSV URLでも構いません。ローカルファイル（file://）で開いても動作します。</p>
-    <input type="url" id="inUrl" placeholder="https://docs.google.com/spreadsheets/d/…">
-    <input type="text" id="inSheet" placeholder="シート名（省略可・既定は先頭シート）" style="margin-top:8px">
+    <h2>データソース設定</h2>
+    <p>スプレッドシートは「リンクを知っている全員：閲覧者」共有、Notionは読み取り専用インテグレーション接続が必要です。どちらの方式もローカル（file://）で動作します。</p>
+    <div class="modalrow" style="margin:0 0 10px">
+      <label class="radiolabel"><input type="radio" name="src" value="sheets"> Google スプレッドシート</label>
+      <label class="radiolabel"><input type="radio" name="src" value="notion"> Notion</label>
+    </div>
+    <div id="secSheets">
+      <input type="url" id="inUrl" placeholder="https://docs.google.com/spreadsheets/d/…">
+      <input type="text" id="inSheet" placeholder="シート名（省略可・既定は先頭シート）" style="margin-top:8px">
+    </div>
+    <div id="secNotion" hidden>
+      <input type="text" id="inNToken" placeholder="インテグレーショントークン（ntn_…）※空欄ならアプリ埋め込み値を使用">
+      <input type="text" id="inNDb" placeholder="データベースURL（notion.so/…）またはID" style="margin-top:8px">
+      <p class="plabel">プロパティ名（DB側の名前に合わせる・空欄なら既定値）</p>
+      <div class="ngrid">
+        <input type="text" id="inNPdate" placeholder="日付">
+        <input type="text" id="inNPtype" placeholder="種別">
+        <input type="text" id="inNPtitle" placeholder="タイトル">
+        <input type="text" id="inNPvenue" placeholder="会場・放送局">
+        <input type="text" id="inNPnote" placeholder="メモ">
+        <input type="text" id="inNPid" placeholder="ID">
+      </div>
+    </div>
     <div class="errmsg" id="setErr" hidden></div>
     <div class="modalrow">
       <button class="btn primary" id="btnSaveUrl" type="button">保存して読み込む</button>
@@ -254,7 +276,19 @@ const LS = {
   known:   "ocheck.known.v1",     // [id,...] 前回までに存在した項目（新着判定用）
   url:     "ocheck.sheetUrl.v1",  // スプレッドシートURL
   sheet:   "ocheck.sheetName.v1", // シート名
+  source:  "ocheck.source.v1",    // "sheets" | "notion"
+  nToken:  "ocheck.notionToken.v1",
+  nDb:     "ocheck.notionDb.v1",
+  nProps:  "ocheck.notionProps.v1", // {id,date,type,title,venue,note}
   fetched: "ocheck.fetchedAt.v1"
+};
+
+/* Notion（公開埋め込み用・読み取り専用インテグレーション）
+   token/dbId は配布用にここへ焼き込む。空なら設定画面の入力を使う */
+const NOTION_CONFIG = {
+  token: "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",
+  dbId: "3ff56f26-ee77-80e0-9bc6-c8fb38a49e33",
+  props: { id: "", date: "日付", type: "種別", title: "番組・公演名", venue: "会場・放送局", note: "メモ" }
 };
 
 /* サンプルデータ（スプレッドシート未設定時に使用） */
@@ -427,16 +461,90 @@ async function loadSheet(raw, sheetName){
   return rows;
 }
 
+/* ================= Notion ================= */
+function normalizeDbId(s){
+  s = String(s).trim();
+  let m = s.match(/([0-9a-fA-F]{32})/);
+  if (m){ const h = m[1]; return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`; }
+  m = s.match(/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/);
+  return m ? m[1] : "";
+}
+function effectiveNotion(){
+  return {
+    token: (localStorage.getItem(LS.nToken) || NOTION_CONFIG.token || "").trim(),
+    dbId: normalizeDbId(localStorage.getItem(LS.nDb) || NOTION_CONFIG.dbId || ""),
+    props: Object.assign({}, NOTION_CONFIG.props, load(LS.nProps, {}))
+  };
+}
+function currentSource(){
+  const s = localStorage.getItem(LS.source);
+  if (s === "notion") return "notion";
+  if (s === "sheets") return "sheets";
+  const n = effectiveNotion();
+  return (n.token && n.dbId) ? "notion" : "sheets";
+}
+function propValue(p){
+  if (!p) return "";
+  if (p.type === "title")     return (p.title || []).map(t => t.plain_text).join("");
+  if (p.type === "rich_text") return (p.rich_text || []).map(t => t.plain_text).join("");
+  if (p.type === "date")      return p.date ? (p.date.start || "") : "";
+  if (p.type === "select")    return p.select ? p.select.name : "";
+  if (p.type === "status")    return p.status ? p.status.name : "";
+  if (p.type === "number")    return p.number == null ? "" : String(p.number);
+  if (p.type === "checkbox")  return p.checkbox ? "TRUE" : "";
+  return p.url || p.email || p.phone_number || "";
+}
+function notionRowsToItems(results, props){
+  return (results || []).map(r => {
+    const P = r.properties || {};
+    const get = key => propValue(P[props[key]]);
+    const title = get("title");
+    const date = get("date");
+    const id = get("id") || r.id || hashId(date + "|" + get("type") + "|" + title + "|" + get("venue"));
+    return { id, date, type: normalizeType(get("type")), title, venue: get("venue"), note: get("note"),
+             ts: parseDate(date) };
+  }).filter(x => x.title);
+}
+async function loadNotion(cfg){
+  if (!cfg.token) throw new Error("インテグレーショントークンが未設定です");
+  if (!cfg.dbId) throw new Error("データベースIDを判別できません");
+  let all = [], cursor = undefined, pages = 0;
+  do{
+    const res = await fetch(`https://api.notion.com/v1/databases/${cfg.dbId}/query`, {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer " + cfg.token,
+        "Notion-Version": "2022-06-28",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(cursor ? { start_cursor: cursor, page_size: 100 } : { page_size: 100 })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || ("HTTP " + res.status));
+    all = all.concat(notionRowsToItems(data.results, cfg.props));
+    cursor = data.has_more ? data.next_cursor : undefined;
+    if (++pages > 10) break;
+  }while(cursor);
+  if (!all.length) throw new Error("データが空です（DB接続・プロパティ名を確認）");
+  return all;
+}
+
 /* ================= データ取得 ================= */
 async function fetchData(){
-  const raw = localStorage.getItem(LS.url);
-  if (!raw){ useDemo(); render(); return; }
   try{
-    const rows = await loadSheet(raw, localStorage.getItem(LS.sheet));
-    items = rowsToItems(rows);
-    if (!items.length) throw new Error("データ行が空です");
+    let its;
+    if (currentSource() === "notion"){
+      its = await loadNotion(effectiveNotion());
+    } else {
+      const raw = localStorage.getItem(LS.url);
+      if (!raw){ useDemo(); render(); return; }
+      its = rowsToItems(await loadSheet(raw, localStorage.getItem(LS.sheet)));
+    }
+    if (!its.length) throw new Error("データ行が空です");
+    items = its;
     isDemo = false;
     save(LS.fetched, Date.now());
+    document.getElementById("demoBanner").hidden = true;
   }catch(e){
     useDemo();
     document.getElementById("fetchedAt").textContent =
@@ -558,10 +666,29 @@ document.getElementById("btnRefresh").addEventListener("click", fetchData);
 
 /* 設定ダイアログ */
 const dlgSettings = document.getElementById("dlgSettings");
+function syncSourceUI(){
+  const src = document.querySelector('input[name="src"]:checked').value;
+  document.getElementById("secSheets").hidden = src !== "sheets";
+  document.getElementById("secNotion").hidden = src !== "notion";
+}
 function openSettings(){
+  const savedSrc = localStorage.getItem(LS.source) || currentSource();
+  document.querySelector(`input[name="src"][value="${savedSrc}"]`).checked = true;
   document.getElementById("inUrl").value = localStorage.getItem(LS.url) || "";
   document.getElementById("inSheet").value = localStorage.getItem(LS.sheet) || "";
+  const n = effectiveNotion();
+  document.getElementById("inNToken").value = localStorage.getItem(LS.nToken) || "";
+  document.getElementById("inNDb").value = localStorage.getItem(LS.nDb) || "";
+  const np = load(LS.nProps, {});
+  document.getElementById("inNPid").value = np.id || "";
+  document.getElementById("inNPdate").value = np.date || "";
+  document.getElementById("inNPtype").value = np.type || "";
+  document.getElementById("inNPtitle").value = np.title || "";
+  document.getElementById("inNPvenue").value = np.venue || "";
+  document.getElementById("inNPnote").value = np.note || "";
   document.getElementById("setErr").hidden = true;
+  document.querySelectorAll('input[name="src"]').forEach(r => r.addEventListener("change", syncSourceUI));
+  syncSourceUI();
   dlgSettings.showModal();
 }
 document.getElementById("btnSettings").addEventListener("click", openSettings);
@@ -569,20 +696,51 @@ document.getElementById("btnDemoSetup").addEventListener("click", openSettings);
 document.getElementById("btnCloseSettings").addEventListener("click", () => dlgSettings.close());
 document.getElementById("btnTestUrl").addEventListener("click", async () => {
   const err = document.getElementById("setErr");
-  const raw = document.getElementById("inUrl").value.trim();
-  const sheet = document.getElementById("inSheet").value.trim();
+  const src = document.querySelector('input[name="src"]:checked').value;
   err.hidden = false;
-  if (!gvizUrls(raw, sheet)){ err.textContent = "スプレッドシートのURLとして認識できません。"; return; }
   err.textContent = "テスト中…";
   try{
-    const rows = await loadSheet(raw, sheet);
+    let rows;
+    if (src === "notion"){
+      const props = Object.assign({}, NOTION_CONFIG.props);
+      for (const [el, key] of [["inNPid","id"],["inNPdate","date"],["inNPtype","type"],["inNPtitle","title"],["inNPvenue","venue"],["inNPnote","note"]]){
+        const v = document.getElementById(el).value.trim();
+        if (v) props[key] = v;
+      }
+      const its = await loadNotion({
+        token: document.getElementById("inNToken").value.trim() || NOTION_CONFIG.token,
+        dbId: document.getElementById("inNDb").value.trim(),
+        props
+      });
+      err.textContent = "OK：" + its.length + "件（先頭: " + (its[0] ? its[0].date + " " + its[0].title : "-") + "）";
+      return;
+    }
+    const raw = document.getElementById("inUrl").value.trim();
+    if (!gvizUrls(raw, document.getElementById("inSheet").value.trim())){ err.textContent = "スプレッドシートのURLとして認識できません。"; return; }
+    rows = await loadSheet(raw, document.getElementById("inSheet").value.trim());
     err.textContent = "OK：先頭行 " + (rows[0] || []).join(" / ") + " ／ " + Math.max(rows.length - 1, 0) + "件のデータ";
   }catch(e){ err.textContent = "失敗：" + e.message; }
 });
 document.getElementById("btnSaveUrl").addEventListener("click", () => {
-  const raw = document.getElementById("inUrl").value.trim();
-  if (raw){ localStorage.setItem(LS.url, raw); localStorage.setItem(LS.sheet, document.getElementById("inSheet").value.trim()); }
-  else { localStorage.removeItem(LS.url); localStorage.removeItem(LS.sheet); }
+  const src = document.querySelector('input[name="src"]:checked').value;
+  if (src === "notion"){
+    localStorage.setItem(LS.source, "notion");
+    const tok = document.getElementById("inNToken").value.trim();
+    const db = document.getElementById("inNDb").value.trim();
+    if (tok) localStorage.setItem(LS.nToken, tok); else localStorage.removeItem(LS.nToken);
+    if (db) localStorage.setItem(LS.nDb, db); else localStorage.removeItem(LS.nDb);
+    const props = {};
+    for (const [el, key] of [["inNPid","id"],["inNPdate","date"],["inNPtype","type"],["inNPtitle","title"],["inNPvenue","venue"],["inNPnote","note"]]){
+      const v = document.getElementById(el).value.trim();
+      if (v) props[key] = v;
+    }
+    if (Object.keys(props).length) localStorage.setItem(LS.nProps, props); else localStorage.removeItem(LS.nProps);
+  } else {
+    localStorage.setItem(LS.source, "sheets");
+    const raw = document.getElementById("inUrl").value.trim();
+    if (raw){ localStorage.setItem(LS.url, raw); localStorage.setItem(LS.sheet, document.getElementById("inSheet").value.trim()); }
+    else { localStorage.removeItem(LS.url); localStorage.removeItem(LS.sheet); }
+  }
   dlgSettings.close();
   document.getElementById("demoBanner").hidden = true;
   document.getElementById("fetchedAt").textContent = "";
@@ -634,8 +792,8 @@ setTimeout(() => {
 
 /* ================= 起動 ================= */
 (async function init(){
-  const raw = localStorage.getItem(LS.url);
-  if (raw && gvizUrls(raw, localStorage.getItem(LS.sheet))){
+  const src = currentSource();
+  if (src === "notion" || (src === "sheets" && localStorage.getItem(LS.url))){
     isDemo = false;
     await fetchData();
   } else {
