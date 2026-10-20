@@ -286,7 +286,7 @@ const LS = {
 /* Notion（公開埋め込み用・読み取り専用インテグレーション）
    token/dbId は配布用にここへ焼き込む。空なら設定画面の入力を使う */
 const NOTION_CONFIG = {
-  token: "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",
+  token: "__NOTION_TOKEN__", // 実トークンはGitHub Actionsがビルド時に注入（リポジトリには載せない）。ローカルで使う場合は設定画面に入力
   dbId: "3ff56f26-ee77-80e0-9bc6-c8fb38a49e33",
   props: { id: "", date: "日付", type: "種別", title: "番組・公演名", venue: "会場・放送局", note: "メモ" }
 };
